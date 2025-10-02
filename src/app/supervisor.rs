@@ -15,7 +15,7 @@ pub async fn run_app(
 
     tokio::select! {
         _ = shutdown.cancelled() => {}
-        res = set.join_next() => {
+        _res = set.join_next() => {
             match set.join_next().await {
                 Some(Ok(_)) => { }
                 Some(Err(e)) => return Err(e.into()),

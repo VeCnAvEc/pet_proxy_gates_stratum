@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
 use bytes::BytesMut;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -13,7 +13,12 @@ use tracing::{error, info};
 use crate::domain::job::{Job, JobRequest};
 use crate::network::message::{parse_message, Command};
 use crate::network::server::ConnId;
-use crate::utils::socket::await_and_replay;
+use crate::utils::metrics::metrics_record_job_outcome;
+use crate::utils::socket::{await_and_replay, Outcome};
+
+pub static TOTAL_JOBS: AtomicU64 = AtomicU64::new(0);
+pub static TOTAL_JOBS_SUCCEEDED: AtomicU64 = AtomicU64::new(0);
+pub static TOTAL_JOBS_FAILED: AtomicU64 = AtomicU64::new(0);
 
 pub async fn handle_connection(
     mut socket: TcpStream, token: CancellationToken,
@@ -50,10 +55,8 @@ pub async fn handle_connection(
 
                             tx_queue_norm.send(job_request).await?;
 
-                            let res = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
-                            if let Err(err) = res {
-                                error!("Socket error: {}", err.to_string());
-                            }
+                            let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            metrics_record_job_outcome(outcome)
                         },
                         Command::CSubmit(submit) => {
                             let (once_tx, mut once_rx) = oneshot::channel::<&str>();
@@ -64,10 +67,8 @@ pub async fn handle_connection(
 
                             tx_queue_high.send(job_request).await?;
 
-                            let res = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
-                            if let Err(err) = res {
-                                error!("Socket error: {}", err.to_string());
-                            }
+                            let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            metrics_record_job_outcome(outcome)
                         },
                         Command::Unknown => {
                             socket.write_all(b"BAD COMMAND\n").await?;

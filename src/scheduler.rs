@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot, Semaphore};
@@ -9,6 +10,21 @@ use crate::domain::job::{Job, JobRequest};
 use crate::methods::submit::Submit;
 
 const HIGH_BUDGET: u16 = 32;
+struct InFlightCpuGuard;
+
+impl InFlightCpuGuard {
+    fn new() -> Self {
+        IN_FLIGHT_CPU.fetch_add(1, Ordering::Relaxed);
+        InFlightCpuGuard
+    }
+}
+
+impl Drop for InFlightCpuGuard {
+    fn drop(&mut self) {
+        IN_FLIGHT_CPU.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
 
 pub struct Scheduler {
     rx_high: mpsc::Receiver<JobRequest>,
@@ -16,6 +32,8 @@ pub struct Scheduler {
     shutdown: CancellationToken,
     cpu_limit: Arc<Semaphore>
 }
+
+static IN_FLIGHT_CPU: AtomicU64 = AtomicU64::new(0);
 
 impl Scheduler {
     pub fn new(
@@ -95,33 +113,6 @@ impl Scheduler {
                     }
                 }
             }
-            // select! {
-            //     biased;
-            //     _ = shutdown.cancelled() => {
-            //         info!("break!!");
-            //         break 'outer;
-            //     }
-            //
-            //     high_job = self.rx_high.recv() => {
-            //         let job = high_job.unwrap();
-            //         info!(?remaining_high, "before high (select)");
-            //         self.process_high_queue(job).await;
-            //         remaining_high = remaining_high.saturating_sub(1);
-            //         info!(?remaining_high, "after high (select)");
-            //     }
-            //
-            //     norm_job = self.rx_norm.recv() => {
-            //         if let Some(job) = norm_job {
-            //             info!(
-            //                 old_budget = remaining_high,
-            //                 reset_to = HIGH_BUDGET,
-            //                 "norm fired; budget reset"
-            //             );
-            //             self.process_norm_queue(job).await;
-            //             remaining_high = HIGH_BUDGET;
-            //         }
-            //     }
-            // }
         }
 
         Ok(())
@@ -154,6 +145,7 @@ impl Scheduler {
 
         let _join_submit = tokio::task::spawn_blocking(move ||  {
             let _permit = permit;
+            let _guard = InFlightCpuGuard::new();
 
             std::thread::sleep(Duration::from_millis(100));
 

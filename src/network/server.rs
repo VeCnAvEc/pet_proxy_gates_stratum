@@ -15,9 +15,7 @@ use crate::domain::job::{JobRequest};
 use crate::network::connection::handle_connection;
 
 static TOTAL_CONN: AtomicU64 = AtomicU64::new(0);
-static TOTAL_JOBS: AtomicU64 = AtomicU64::new(0);
 
-static LAST_RESULT_DATA: AtomicU64 = AtomicU64::new(0);
 static LAST_PUBLISHED_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub type ConnId = u64;

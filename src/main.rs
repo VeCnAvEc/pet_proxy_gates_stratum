@@ -45,5 +45,5 @@ async fn main() {
         cpu_limiter
     );
 
-    let result = run_app(server.unwrap(), scheduler, token).await;
+    let _ = run_app(server.unwrap(), scheduler, token).await;
 }
