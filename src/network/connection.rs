@@ -13,11 +13,12 @@ use tracing::{error, info};
 use crate::domain::job::{Job, JobRequest};
 use crate::network::message::{parse_message, Command};
 use crate::network::server::ConnId;
+use crate::utils::socket::await_and_replay;
 
 pub async fn handle_connection(
     mut socket: TcpStream, token: CancellationToken,
     conn_id: ConnId, tx_queue_high: Sender<JobRequest>,
-    tx_norm: Sender<JobRequest>
+    tx_queue_norm: Sender<JobRequest>
 ) -> anyhow::Result<()> {
     let mut buf = BytesMut::with_capacity(1024);
     loop {
@@ -47,27 +48,14 @@ pub async fn handle_connection(
                                 respond_to: once_tx,
                             };
 
-                            tx_queue_high.send(job_request).await?;
+                            tx_queue_norm.send(job_request).await?;
 
-                            loop {
-                                let mut interval = tokio::time::interval(Duration::from_millis(1000));
-
-                                match once_rx.try_recv() {
-                                    Ok(result) => {
-                                        info!("result -> {}", result);
-                                        socket.write_all(result.as_bytes()).await?;
-                                        break;
-                                    }
-                                    Err(err) => {
-                                        error!(error=?err, "Channel");
-                                    }
-                                }
-
-                                interval.tick().await;
+                            let res = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            if let Err(err) = res {
+                                error!("Socket error: {}", err.to_string());
                             }
                         },
                         Command::CSubmit(submit) => {
-                            info!("It's a submit");
                             let (once_tx, mut once_rx) = oneshot::channel::<&str>();
                             let job_request = JobRequest {
                                 job: Job::MiningSubmit(submit),
@@ -76,18 +64,9 @@ pub async fn handle_connection(
 
                             tx_queue_high.send(job_request).await?;
 
-                            loop {
-                                let mut interval = tokio::time::interval(Duration::from_millis(1000));
-
-                                match once_rx.try_recv() {
-                                    Ok(result) => {
-                                        info!("result -> {}", result);
-                                        socket.write_all(result.as_bytes()).await?;
-                                        break;
-                                    }
-                                    Err(err) => {error!(error=?err, "Channel")},
-                                }
-                                interval.tick().await;
+                            let res = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            if let Err(err) = res {
+                                error!("Socket error: {}", err.to_string());
                             }
                         },
                         Command::Unknown => {

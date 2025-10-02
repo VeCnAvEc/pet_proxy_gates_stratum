@@ -14,6 +14,7 @@ mod methods;
 mod domain;
 mod scheduler;
 mod app;
+mod utils;
 
 #[tokio::main(flavor="multi_thread")]
 async fn main() {
