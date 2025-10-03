@@ -1,20 +1,22 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+
+use std::sync::atomic::{AtomicU64};
 use bytes::BytesMut;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::select;
-use tokio::sync::{mpsc::Sender, oneshot};
+use tokio::sync::{mpsc::Sender};
+use futures::channel::oneshot;
 
 use tokio_util::sync::CancellationToken;
 
-use tracing::{error, info};
+use tracing::{info};
 
-use crate::domain::job::{Job, JobRequest};
-use crate::network::message::{parse_message, Command};
-use crate::network::server::ConnId;
-use crate::utils::metrics::metrics_record_job_outcome;
-use crate::utils::socket::{await_and_replay, Outcome};
+use core::job::{Job, JobRequest};
+use crate::message::{parse_message, Command};
+use crate::server::ConnId;
+use crate::utils::metrics_record_job_outcome;
+use crate::utils::await_and_replay;
 
 pub static TOTAL_JOBS: AtomicU64 = AtomicU64::new(0);
 pub static TOTAL_JOBS_SUCCEEDED: AtomicU64 = AtomicU64::new(0);

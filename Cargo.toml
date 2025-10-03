@@ -1,9 +1,16 @@
-[package]
-name = "proxy-gates"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/net",
+    "crates/scheduler",
+    "crates/telemetry",
+    "crates/app",
+    "crates/utils",
+    "bin/proxy-gates"
+]
 
-[dependencies]
+[workspace.dependencies]
 tokio = { version = "1.44.2", features = ["full"] }
 tokio-util = "0.7.15"
 serde = "1.0.219"
@@ -13,3 +20,4 @@ thiserror = "2.0.12"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 dashmap = "7.0.0-rc2"
+futures = "0.3.31"

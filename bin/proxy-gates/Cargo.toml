@@ -1,0 +1,11 @@
+[package]
+name = "proxy-gates-bin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.44.2", features = ["full"] }
+tokio-util = "0.7.15"
+app = { path = "../../crates/app" }
+core = { path = "../../crates/core" }
+utils = { path = "../../crates/utils" }

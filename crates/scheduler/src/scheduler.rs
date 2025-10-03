@@ -2,12 +2,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::select;
-use tokio::sync::{mpsc, oneshot, Semaphore};
+use tokio::sync::{mpsc, Semaphore};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio_util::sync::CancellationToken;
+
+use futures::channel::oneshot;
+
 use tracing::{info, warn};
-use crate::domain::job::{Job, JobRequest};
-use crate::methods::submit::Submit;
+
+use core::job::{Job, JobRequest, Submit};
 
 const HIGH_BUDGET: u16 = 32;
 struct InFlightCpuGuard;

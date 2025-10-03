@@ -1,4 +1,4 @@
-use crate::methods::submit::Submit;
+use core::job::Submit;
 
 #[derive(Debug)]
 pub enum Command {

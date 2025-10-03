@@ -9,14 +9,14 @@ use tokio::select;
 use tokio::sync::mpsc::{Sender};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+
 use tracing::{error, info, warn};
 
-use crate::domain::job::{JobRequest};
-use crate::network::connection::handle_connection;
+use core::job::JobRequest;
+
+use crate::connection::handle_connection;
 
 static TOTAL_CONN: AtomicU64 = AtomicU64::new(0);
-
-static LAST_PUBLISHED_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub type ConnId = u64;
 
