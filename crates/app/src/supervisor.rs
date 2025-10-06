@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -8,6 +9,7 @@ use tracing::{warn, Instrument};
 use net::server::Server;
 use scheduler::scheduler::Scheduler;
 use core::job::JobRequest;
+use telemetry::ActivityTelemetry;
 
 pub async fn run_app(
     socket_addr: SocketAddr, semaphore: Arc<Semaphore>,
@@ -27,10 +29,13 @@ pub async fn run_app(
         token_shutdown.clone(),
         semaphore
     );
+    let mut telemetry = ActivityTelemetry::new(token_shutdown.clone(), Duration::from_secs(10))
+        .set_jobs_telemetry(true);
     let mut set = JoinSet::new();
 
     set.spawn(async move { server.server_run().await }.instrument(tracing::info_span!("server")));
     set.spawn(async move { scheduler.run().await }.instrument(tracing::info_span!("scheduler")));
+    set.spawn(async move { telemetry.run_telemetry().await }.instrument(tracing::info_span!("telemetry")));
 
     tokio::select! {
         _ = token_shutdown.cancelled() => {}

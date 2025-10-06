@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+log = "0.4.27"
+anyhow = { workspace = true }
+tokio-util = { workspace = true }
+tokio = { workspace = true }
+net = { path = "../net" }

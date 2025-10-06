@@ -8,6 +8,8 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+
+telemetry = { path = "../telemetry" }
 net = { path = "../net" }
 scheduler = { path = "../scheduler" }
 core = { path = "../core" }

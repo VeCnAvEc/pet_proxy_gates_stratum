@@ -35,6 +35,7 @@ pub async fn handle_connection(
         select! {
             _ = child_token.cancelled() => {
                 info!(conn_id, "conn cancelled");
+                break;
             }
             n = socket.read(&mut tmp) => {
                 let n = n?;

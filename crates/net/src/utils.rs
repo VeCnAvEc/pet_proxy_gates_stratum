@@ -53,6 +53,5 @@ pub fn metrics_record_job_outcome(outcome: Outcome) {
             TOTAL_JOBS_FAILED.fetch_add(1, Relaxed);
         }
     }
-
     TOTAL_JOBS.fetch_add(1, Relaxed);
 }
