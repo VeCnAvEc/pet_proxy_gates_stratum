@@ -61,13 +61,10 @@ impl Scheduler {
             if self.shutdown.is_cancelled() { break 'outer; }
 
             while remaining_high > 0 {
-                info!(?remaining_high, "before high");
                 match self.rx_high.try_recv() {
                     Ok(job) => {
                         self.process_high_queue(job).await;
                         remaining_high -= 1;
-
-                        info!(?remaining_high, "after high");
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {}
@@ -83,11 +80,14 @@ impl Scheduler {
                     _ = shutdown.cancelled() => break 'outer,
                     high_job = self.rx_high.recv() => {
                         let job = high_job.unwrap();
-                        info!(?remaining_high, "before high (select)");
                         self.process_high_queue(job).await;
                         remaining_high = remaining_high.saturating_sub(1);
-                        info!(?remaining_high, "after high (select)");
                     }
+                }
+            } else {
+                select! {
+                    biased;
+                    _ = shutdown.cancelled() => break 'outer,
                     norm_job = self.rx_norm.recv() => {
                         if let Some(job) = norm_job {
                             info!(
@@ -99,19 +99,9 @@ impl Scheduler {
                             remaining_high = HIGH_BUDGET;
                         }
                     }
-                }
-            } else {
-                select! {
-                    _ = shutdown.cancelled() => break 'outer,
-                    norm_job = self.rx_norm.recv() => {
-                        if let Some(job) = norm_job {
-                            info!(
-                                old_budget = remaining_high,
-                                reset_to = HIGH_BUDGET,
-                                "norm fired; budget reset"
-                            );
-                            self.process_norm_queue(job).await;
-                            remaining_high = HIGH_BUDGET;
+                    high_job = self.rx_high.recv() => {
+                        if let Some(job) = high_job {
+                            self.process_high_queue(job).await;
                         }
                     }
                 }

@@ -375,7 +375,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "proxy-gates-bin"
+name = "proxy-gates"
 version = "0.1.0"
 dependencies = [
  "app",

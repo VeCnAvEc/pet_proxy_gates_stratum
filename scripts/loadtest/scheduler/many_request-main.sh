@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Parameters (change them via env at startup)
-TOTAL_SUBMITS=${TOTAL_SUBMITS:-1000}   # How many submits should I send in total
-PING_EVERY=${PING_EVERY:-20}           # how many submits to send 1 PING (under your HIGH_BUDGET)
+TOTAL_SUBMITS=${TOTAL_SUBMITS:-130}   # How many submits should I send in total
+PING_EVERY=${PING_EVERY:-15}           # how many submits to send 1 PING (under your HIGH_BUDGET)
 CONCURRENCY=${CONCURRENCY:-128}        # the limit of simultaneous processes
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,19 +23,21 @@ sent=0
 
 # We're pouring submits in the background, periodically throwing in PING
 while (( sent < TOTAL_SUBMITS )); do
-  run_with_limit "\"$SCRIPT_DIR/request_submit.sh\""
+  # increment first so indexing is 1-based
   (( ++sent ))
+  # pass submit index to the child
+  run_with_limit "SUBMIT_INDEX=$sent \"$SCRIPT_DIR/request_submit.sh\""
 
   # Every PING_EVERY submits an immediate PING, also in the background
   if (( sent % PING_EVERY == 0 )); then
-    run_with_limit "\"$SCRIPT_DIR/request_ping.sh\""
+    # pass the same overall index so you know at which submit the ping happened
+    run_with_limit "PING_INDEX=$sent \"$SCRIPT_DIR/request_ping.sh\""
   fi
 done
 
-# Just in case, add a final PING if TOTAL_SUBMITS
-# not a multiple of PING_EVERY to accurately see the norm among high
+# Just in case, add a final PING if TOTAL_SUBMITS not a multiple of PING_EVERY
 if (( sent % PING_EVERY != 0 )); then
-  run_with_limit "\"$SCRIPT_DIR/request_ping.sh\""
+  run_with_limit "PING_INDEX=$sent \"$SCRIPT_DIR/request_ping.sh\""
 fi
 
 # Wait for everyone

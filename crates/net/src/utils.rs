@@ -4,10 +4,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
-use tracing::error;
+use tracing::{error, info, warn};
 
 use crate::connection::{TOTAL_JOBS, TOTAL_JOBS_FAILED, TOTAL_JOBS_SUCCEEDED};
 
+#[derive(Debug)]
 pub enum Outcome {
     Replied,
     NoReply,
@@ -33,7 +34,7 @@ pub async fn await_and_replay(
                         Outcome::Replied
                     }
                 }
-                Err(_err) => { Outcome::NoReply }
+                Err(_err) => {Outcome::NoReply}
             }
         }
     }
