@@ -1,5 +1,5 @@
 [package]
-name = "net"
+name = "network"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,6 +9,8 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
-core = { path = "../core" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+score = { path = "../score" }
 dashmap = "7.0.0-rc2"
 futures = "0.3.31"

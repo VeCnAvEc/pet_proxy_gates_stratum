@@ -1,4 +1,4 @@
 pub mod connection;
-mod message;
 pub mod server;
+mod message;
 mod utils;

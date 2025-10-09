@@ -10,7 +10,7 @@ use futures::channel::oneshot;
 
 use tracing::{info, warn};
 
-use core::job::{Job, JobRequest, Submit};
+use score::job::{Job, JobRequest, Submit};
 
 const HIGH_BUDGET: u16 = 32;
 struct InFlightCpuGuard;

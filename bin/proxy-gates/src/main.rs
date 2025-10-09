@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use app::supervisor::run_app;
-use core::job::JobRequest;
+use score::job::JobRequest;
 use utils::logs::init_logs;
 
 #[tokio::main(flavor="multi_thread")]

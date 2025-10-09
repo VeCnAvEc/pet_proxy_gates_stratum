@@ -12,8 +12,8 @@ use tokio_util::sync::CancellationToken;
 
 use tracing::{info};
 
-use core::job::{Job, JobRequest};
-use crate::message::{parse_message, Command};
+use score::job::{Job, JobRequest};
+use crate::message::{parse_message::parse_message, Command};
 use crate::server::ConnId;
 use crate::utils::metrics_record_job_outcome;
 use crate::utils::await_and_replay;
@@ -59,7 +59,7 @@ pub async fn handle_connection(
                             tx_queue_norm.send(job_request).await?;
 
                             let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
-                            metrics_record_job_outcome(outcome)
+                            metrics_record_job_outcome(outcome);
                         },
                         Command::CSubmit(submit) => {
                             let (once_tx, mut once_rx) = oneshot::channel::<&str>();
@@ -71,11 +71,12 @@ pub async fn handle_connection(
                             tx_queue_high.send(job_request).await?;
 
                             let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
-                            metrics_record_job_outcome(outcome)
+                            metrics_record_job_outcome(outcome);
                         },
                         Command::Unknown => {
                             socket.write_all(b"BAD COMMAND\n").await?;
                         }
+                        _ => {}
                     }
                 }
             }

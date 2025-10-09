@@ -1,23 +1,29 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/core",
-    "crates/net",
+    "crates/score",
+    "crates/network",
     "crates/scheduler",
     "crates/telemetry",
     "crates/app",
     "crates/utils",
-    "bin/proxy-gates"
-]
+    "bin/proxy-gates"]
 
 [workspace.dependencies]
 tokio = { version = "1.44.2", features = ["full"] }
 tokio-util = "0.7.15"
+
+futures = "0.3.31"
+
 serde = "1.0.219"
+serde_json = "1.0.140"
+
 bytes = "1.10.1"
+
 anyhow = "1.0.98"
-thiserror = "2.0.12"
+thiserror = { version = "2.0.12", default-features = true }
+
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
 dashmap = "7.0.0-rc2"
-futures = "0.3.31"

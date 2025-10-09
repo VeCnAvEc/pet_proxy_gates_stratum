@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use tracing::{error, info, warn};
 
-use core::job::JobRequest;
+use score::job::JobRequest;
 
 use crate::connection::handle_connection;
 

@@ -6,9 +6,9 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{warn, Instrument};
-use net::server::Server;
+use network::server::Server;
 use scheduler::scheduler::Scheduler;
-use core::job::JobRequest;
+use score::job::JobRequest;
 use telemetry::ActivityTelemetry;
 
 pub async fn run_app(

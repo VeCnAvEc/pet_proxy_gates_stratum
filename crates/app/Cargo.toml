@@ -8,8 +8,10 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 
 telemetry = { path = "../telemetry" }
-net = { path = "../net" }
+network = { path = "../network" }
 scheduler = { path = "../scheduler" }
-core = { path = "../core" }
+score = { path = "../score" }
