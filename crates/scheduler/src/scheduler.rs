@@ -2,17 +2,20 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::select;
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::{mpsc, AcquireError, OwnedSemaphorePermit, Semaphore};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio_util::sync::CancellationToken;
 
 use futures::channel::oneshot;
+use tokio::task::{JoinHandle, JoinSet};
+use tracing::{error, info, warn};
 
-use tracing::{info, warn};
-
-use score::job::{Job, JobRequest, Submit};
+use score::job::{Job, JobRequest, Submit, Subscribe};
 
 const HIGH_BUDGET: u16 = 32;
+
+static IN_FLIGHT_CPU: AtomicU64 = AtomicU64::new(0);
+
 struct InFlightCpuGuard;
 
 impl InFlightCpuGuard {
@@ -36,8 +39,6 @@ pub struct Scheduler {
     cpu_limit: Arc<Semaphore>
 }
 
-static IN_FLIGHT_CPU: AtomicU64 = AtomicU64::new(0);
-
 impl Scheduler {
     pub fn new(
         rx_high: mpsc::Receiver<JobRequest>,
@@ -57,6 +58,8 @@ impl Scheduler {
         info!("Scheduler started!");
         let mut remaining_high = HIGH_BUDGET;
 
+        // let mut tasks_controller = JoinSet::new();
+
         'outer: loop {
             if self.shutdown.is_cancelled() { break 'outer; }
 
@@ -66,8 +69,12 @@ impl Scheduler {
                         self.process_high_queue(job).await;
                         remaining_high -= 1;
                     }
-                    Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => {}
+                    Err(TryRecvError::Empty) => {},
+                    Err(TryRecvError::Disconnected) => {
+                        // Here we will call token.cancel() and destroy all task
+                        warn!("The high queue has been closed");
+                        break;
+                    }
                 }
 
                 if self.shutdown.is_cancelled() { break 'outer; }
@@ -79,9 +86,10 @@ impl Scheduler {
                     biased;
                     _ = shutdown.cancelled() => break 'outer,
                     high_job = self.rx_high.recv() => {
-                        let job = high_job.unwrap();
-                        self.process_high_queue(job).await;
-                        remaining_high = remaining_high.saturating_sub(1);
+                        if let Some(job) = high_job {
+                            self.process_high_queue(job).await;
+                            remaining_high = remaining_high.saturating_sub(1);
+                        }
                     }
                 }
             } else {
@@ -115,6 +123,9 @@ impl Scheduler {
         match job.job {
             Job::MiningSubmit(submit) => {
                 let _ = self.handle_submit(submit, job.respond_to).await;
+            },
+            Job::MiningSubscribe(subscribe) => {
+                // let _ =
             }
             _ => {
                 warn!("It isn't a high priority job!");
@@ -125,7 +136,10 @@ impl Scheduler {
     pub async fn process_norm_queue(&self, job: JobRequest) {
         match job.job {
             Job::Ping => {
-                job.respond_to.send("PONG\n").unwrap();
+                if let Err(err) = job.respond_to.send("PONG\n") {
+                    warn!("Couldn't to send to respond_to!");
+                    error!("respond_to send error: {}", err);
+                };
             }
             _ => {
                 warn!("It isn't a norm priority job!");
@@ -133,7 +147,7 @@ impl Scheduler {
         }
     }
 
-    pub async fn handle_submit(&self, submit: Submit, respond_to: oneshot::Sender<&'static str>) -> anyhow::Result<()>{
+    pub async fn handle_submit(&self, submit: Submit, respond_to: oneshot::Sender<&'static str>) -> anyhow::Result<()> {
         let permit = self.cpu_limit.clone().acquire_owned().await?;
 
         let _join_submit = tokio::task::spawn_blocking(move ||  {
@@ -143,8 +157,17 @@ impl Scheduler {
             std::thread::sleep(Duration::from_millis(100));
 
             info!("Submit -> {:?}", submit);
-            respond_to.send("OK\n").unwrap();
+            if let Err(err) = respond_to.send("OK\n") {
+                warn!("Couldn't to send respond_to!");
+                error!("respond_to send error: {}", err);
+            }
         });
+
+        Ok(())
+    }
+
+    pub async fn handle_subscribe(&mut self, subscribe: Subscribe, respond_to: oneshot::Sender<&'static str>) -> anyhow::Result<()> {
+
 
         Ok(())
     }

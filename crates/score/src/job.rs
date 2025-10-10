@@ -6,6 +6,8 @@ use crate::traits::{extract_params_array, FromParams, ParseError};
 #[derive(Debug)]
 pub enum Job {
     MiningSubmit(Submit),
+    MiningAuthorize(Authorize),
+    MiningSubscribe(Subscribe),
     Ping,
 }
 

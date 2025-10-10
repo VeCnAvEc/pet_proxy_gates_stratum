@@ -73,6 +73,18 @@ pub async fn handle_connection(
                             let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
                             metrics_record_job_outcome(outcome);
                         },
+                        Command::CSubscribe(subscribe) => {
+                            let (once_tx, mut once_rx) = oneshot::channel::<&str>();
+                            let job_request = JobRequest {
+                                job: Job::MiningSubscribe(subscribe),
+                                respond_to: once_tx
+                            };
+
+                            tx_queue_high.send(job_request).await?;
+
+                            let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            metrics_record_job_outcome(outcome);
+                        }
                         Command::Unknown => {
                             socket.write_all(b"BAD COMMAND\n").await?;
                         }
