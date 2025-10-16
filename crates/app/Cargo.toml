@@ -15,3 +15,4 @@ telemetry = { path = "../telemetry" }
 network = { path = "../network" }
 scheduler = { path = "../scheduler" }
 score = { path = "../score" }
+config = { path = "../config" }

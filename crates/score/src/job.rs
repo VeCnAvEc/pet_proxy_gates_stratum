@@ -1,20 +1,22 @@
-use futures::channel::oneshot;
+use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::sync::{Mutex, oneshot};
+use crate::miner::Miner;
 use crate::traits::{extract_params_array, FromParams, ParseError};
 
 #[derive(Debug)]
 pub enum Job {
-    MiningSubmit(Submit),
-    MiningAuthorize(Authorize),
-    MiningSubscribe(Subscribe),
+    MiningSubmit((Submit, Arc<Mutex<Miner>>)), // mining.submit
+    MiningAuthorize((Authorize, Arc<Mutex<Miner>>)), // mining.authorize
+    MiningSubscribe((Subscribe, Arc<Mutex<Miner>>)), // mining.subscribe
     Ping,
 }
 
 #[derive(Debug)]
 pub struct JobRequest {
-    pub job: Job,
-    pub respond_to: oneshot::Sender<&'static str>,
+    pub job: Job, // mining method
+    pub respond_to: oneshot::Sender<&'static str>, // a channel for responding to the user
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,10 +37,11 @@ pub struct Authorize {
 
 #[derive(Debug, Deserialize)]
 pub struct Subscribe {
-    text: String, // example: user agent/version
-    extranonce1: Option<String> // Optional
+    agent_version: String, // example: user agent/version
+    extranonce1: Option<String> // Optional extranonce1. If miner wants to continue with his past extranonce1
 }
 
+// Build a structure submit from params
 impl FromParams for Submit {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
@@ -54,7 +57,7 @@ impl FromParams for Submit {
     }
 }
 
-
+// Build a structure authorize from params
 impl FromParams for Authorize {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
@@ -66,11 +69,12 @@ impl FromParams for Authorize {
     }
 }
 
+// Build a structure subscribe from params
 impl FromParams for Subscribe {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
             Subscribe {
-                text: params.get(0).and_then(|text| Some(text.as_str().unwrap().to_string())).unwrap(),
+                agent_version: params.get(0).and_then(|text| Some(text.as_str().unwrap().to_string())).unwrap_or("Unknown".to_string()),
                 extranonce1: params.get(1).and_then(|extranonce1| Some(extranonce1.as_str().unwrap().to_string())),
             }
         )

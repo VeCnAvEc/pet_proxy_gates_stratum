@@ -1,15 +1,20 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+
 use tokio_util::sync::CancellationToken;
+
 use tracing::{warn, Instrument};
+
 use network::server::Server;
 use scheduler::scheduler::Scheduler;
 use score::job::JobRequest;
 use telemetry::ActivityTelemetry;
+use config::Config;
 
 pub async fn run_app(
     socket_addr: SocketAddr, semaphore: Arc<Semaphore>,
@@ -17,17 +22,23 @@ pub async fn run_app(
     rx_cpu_queue_high: Receiver<JobRequest>, rx_cpu_queue_norm: Receiver<JobRequest>,
     token_shutdown: CancellationToken
 ) -> anyhow::Result<()> {
+    let config = Arc::new(Config::new());
+    let config_srv = config.clone();
+    let config_sdr = config.clone();
+
     let server = Server::new(
         socket_addr,
         tx_cpu_queue_high,
         tx_cpu_queue_norm,
-        token_shutdown.clone()
+        token_shutdown.clone(),
+        config_srv
     ).await?;
     let scheduler = Scheduler::new(
         rx_cpu_queue_high,
         rx_cpu_queue_norm,
         token_shutdown.clone(),
-        semaphore
+        semaphore,
+        config_sdr
     );
     let mut telemetry = ActivityTelemetry::new(token_shutdown.clone(), Duration::from_secs(10))
         .set_jobs_telemetry(true);

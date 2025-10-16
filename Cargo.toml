@@ -7,7 +7,7 @@ members = [
     "crates/telemetry",
     "crates/app",
     "crates/utils",
-    "bin/proxy-gates"]
+    "bin/proxy-gates", "crates/db", "crates/config"]
 
 [workspace.dependencies]
 tokio = { version = "1.44.2", features = ["full"] }
@@ -27,3 +27,7 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 dashmap = "7.0.0-rc2"
+
+uuid = { version = "1.16.0", features = ["v4"] }
+
+sqlx = { version = "0.8.5", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros"] }

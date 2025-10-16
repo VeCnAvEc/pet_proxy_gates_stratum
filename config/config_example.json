@@ -1,0 +1,10 @@
+{
+  "stratum_host": "localhost",
+  "stratum_port": 8080,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "db_name": "your_pg_db_name",
+    "password": "your_pg_db_pass"
+  }
+}

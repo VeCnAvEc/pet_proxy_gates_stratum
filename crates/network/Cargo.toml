@@ -11,6 +11,9 @@ tracing = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-score = { path = "../score" }
+
 dashmap = "7.0.0-rc2"
 futures = "0.3.31"
+
+score = { path = "../score" }
+config = { path = "../config" }

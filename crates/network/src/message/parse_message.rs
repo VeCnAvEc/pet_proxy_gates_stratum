@@ -14,9 +14,9 @@ pub fn parse_message(line: &str) -> anyhow::Result<Command> {
     }
     let message_json = message_json?;
 
-    let method = message_json.get("method").unwrap();
+    let method = message_json.get("method").unwrap().as_str().unwrap();
 
-    match method.as_str().unwrap() {
+    match method {
         "mining.submit" => {
             let validation_result = submit_validation(&message_json);
             if let Err(err) = validation_result {
@@ -37,7 +37,16 @@ pub fn parse_message(line: &str) -> anyhow::Result<Command> {
 
             Ok(Command::CAuthorize(authorize))
         },
-        "mining.subscribe" => {Ok(Command::Unknown)}
+        "mining.subscribe" => {
+            let validation_result = validation_subscribe(&message_json);
+            if let Err(err) = validation_result {
+                warn!("Validation Error: {:?}", err);
+                return Ok(Command::Unknown);
+            }
+            let subscribe = Subscribe::from_value(&message_json)?;
+
+            Ok(Command::CSubscribe(subscribe))
+        }
         _ => {
             let validation_result = validation_subscribe(&message_json);
             if let Err(err) = validation_result {

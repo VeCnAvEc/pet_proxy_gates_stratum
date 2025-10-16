@@ -2,15 +2,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::select;
+use tokio::sync::{oneshot, Mutex};
 use tokio::sync::{mpsc, AcquireError, OwnedSemaphorePermit, Semaphore};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio_util::sync::CancellationToken;
 
-use futures::channel::oneshot;
 use tokio::task::{JoinHandle, JoinSet};
 use tracing::{error, info, warn};
-
+use config::Config;
 use score::job::{Job, JobRequest, Submit, Subscribe};
+use score::miner::Miner;
 
 const HIGH_BUDGET: u16 = 32;
 
@@ -36,7 +37,8 @@ pub struct Scheduler {
     rx_high: mpsc::Receiver<JobRequest>,
     rx_norm: mpsc::Receiver<JobRequest>,
     shutdown: CancellationToken,
-    cpu_limit: Arc<Semaphore>
+    cpu_limit: Arc<Semaphore>,
+    config: Arc<Config>
 }
 
 impl Scheduler {
@@ -44,13 +46,15 @@ impl Scheduler {
         rx_high: mpsc::Receiver<JobRequest>,
         rx_norm: mpsc::Receiver<JobRequest>,
         shutdown: CancellationToken,
-        cpu_limit: Arc<Semaphore>
+        cpu_limit: Arc<Semaphore>,
+        config: Arc<Config>
     ) -> Self {
         Self {
             rx_high,
             rx_norm,
             shutdown,
             cpu_limit,
+            config
         }
     }
 
@@ -121,11 +125,11 @@ impl Scheduler {
 
     pub async fn process_high_queue(&self, job: JobRequest) {
         match job.job {
-            Job::MiningSubmit(submit) => {
+            Job::MiningSubmit((submit, miner)) => {
                 let _ = self.handle_submit(submit, job.respond_to).await;
             },
-            Job::MiningSubscribe(subscribe) => {
-                // let _ =
+            Job::MiningSubscribe((subscribe, miner)) => {
+                let _ = self.handle_subscribe(subscribe, job.respond_to, miner).await;
             }
             _ => {
                 warn!("It isn't a high priority job!");
@@ -166,9 +170,14 @@ impl Scheduler {
         Ok(())
     }
 
-    pub async fn handle_subscribe(&mut self, subscribe: Subscribe, respond_to: oneshot::Sender<&'static str>) -> anyhow::Result<()> {
+    pub async fn handle_subscribe(&self, subscribe: Subscribe, respond_to: oneshot::Sender<&'static str>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
+        miner.lock().await.set_is_subscribe(true);
+        info!("Miner is subscribe!");
+
+        info!("Subscribe message: {:?}", subscribe);
 
 
+        // respond_to();
         Ok(())
     }
 }

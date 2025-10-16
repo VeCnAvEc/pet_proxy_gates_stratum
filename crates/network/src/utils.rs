@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering::Relaxed;
-use futures::channel::oneshot;
 use serde_json::Value;
+use tokio::sync::oneshot;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;

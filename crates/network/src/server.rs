@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use tracing::{error, info, warn};
-
+use config::Config;
 use score::job::JobRequest;
 
 use crate::connection::handle_connection;
@@ -31,13 +31,15 @@ pub struct Server {
     shutdown: CancellationToken,
     tx_queue_high: Sender<JobRequest>,
     tx_queue_norm: Sender<JobRequest>,
-    conns: Arc<DashMap<ConnId, ConnHandle>>
+    conns: Arc<DashMap<ConnId, ConnHandle>>,
+    config: Arc<Config>
 }
 
 impl Server {
     pub async fn new(
         addr: SocketAddr, tx_queue_high: Sender<JobRequest>,
-        tx_queue_norm: Sender<JobRequest>, token: CancellationToken
+        tx_queue_norm: Sender<JobRequest>, token: CancellationToken,
+        config: Arc<Config>
     ) -> anyhow::Result<Server> {
         let listener = Arc::new(TcpListener::bind(addr).await?);
         let conns = Arc::new(DashMap::new());
@@ -47,7 +49,8 @@ impl Server {
             shutdown: token,
             tx_queue_high,
             tx_queue_norm,
-            conns
+            conns,
+            config
         })
     }
     pub async fn server_run(self) -> anyhow::Result<()> {
