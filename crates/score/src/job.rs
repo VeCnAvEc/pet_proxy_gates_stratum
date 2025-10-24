@@ -111,3 +111,13 @@ impl Subscribe {
         Subscribe::from_params(params.unwrap())
     }
 }
+
+impl Authorize {
+    pub fn username(&self) -> &str {
+        &self.username
+    }
+
+    pub fn password(&self) -> &Option<String> {
+        &self.password
+    }
+}

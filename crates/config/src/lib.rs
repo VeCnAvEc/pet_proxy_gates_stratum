@@ -7,7 +7,9 @@ use serde::Deserialize;
 pub struct Config {
     pub stratum_host: String,
     pub stratum_port: u16,
-    pub database: DatabaseConfig
+    pub database: DatabaseConfig,
+    pub api_key: String,
+    pub api_url: String
 }
 
 #[derive(Debug, Deserialize)]

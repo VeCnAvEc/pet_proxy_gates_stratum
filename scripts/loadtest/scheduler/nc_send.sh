@@ -1,6 +1,6 @@
 #!/bin/bash
 host=${1:-127.0.0.1}
-port=${2:-8080}
+port=${2:-5555}
 
 # reading from stdin and send through nc, choosing keys for a specific netcat
 if nc -h 2>&1 | grep -qi openbsd; then

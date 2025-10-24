@@ -26,7 +26,7 @@ pub static TOTAL_JOBS_FAILED: AtomicU64 = AtomicU64::new(0);
 pub async fn handle_connection(
     mut socket: TcpStream, token: CancellationToken,
     conn_id: ConnId, tx_queue_high: Sender<JobRequest>,
-    tx_queue_norm: Sender<JobRequest>
+    tx_queue_norm: Sender<JobRequest>, api_url: String
 ) -> anyhow::Result<()> {
     let mut buf = BytesMut::with_capacity(1024);
 
@@ -85,6 +85,18 @@ pub async fn handle_connection(
                             let (once_tx, mut once_rx) = oneshot::channel::<&str>();
                             let job_request = JobRequest {
                                 job: Job::MiningSubscribe((subscribe, miner)),
+                                respond_to: once_tx
+                            };
+
+                            tx_queue_high.send(job_request).await?;
+
+                            let outcome = await_and_replay(&mut socket, &mut once_rx, child_token.clone()).await;
+                            metrics_record_job_outcome(outcome);
+                        },
+                        Command::CAuthorize(authorize) => {
+                            let (once_tx, mut once_rx) = oneshot::channel::<&str>();
+                            let job_request = JobRequest {
+                                job: Job::MiningAuthorize((authorize, miner)),
                                 respond_to: once_tx
                             };
 

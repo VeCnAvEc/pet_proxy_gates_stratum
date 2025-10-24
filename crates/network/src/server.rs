@@ -89,8 +89,9 @@ impl Server {
         let tx_norm = self.tx_queue_norm.clone();
         let conn = self.conns.clone();
 
+        let api_url = self.config.api_url.clone();
         let join = tokio::spawn(async move {
-            if let Err(e) = handle_connection(socket, token_handle_connection, conn_id, tx_high, tx_norm).await {
+            if let Err(e) = handle_connection(socket, token_handle_connection, conn_id, tx_high, tx_norm, api_url).await {
                 warn!(%addr, %conn_id, error=?e, "conn error")
             }
         });

@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = "1.44.2"
-tokio-util = "0.7.15"
-tracing = "0.1.41"
-anyhow = "1.0.98"
-futures = "0.3.31"
+reqwest = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 
 score = { path = "../score" }
 config = { path = "../config" }
+network = { path = "../network" }

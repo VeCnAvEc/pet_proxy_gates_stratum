@@ -11,9 +11,11 @@ tracing = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+reqwest = { workspace = true }
 
 dashmap = "7.0.0-rc2"
 futures = "0.3.31"
 
 score = { path = "../score" }
 config = { path = "../config" }
+serde = { version = "1.0.228", features = ["derive"] }

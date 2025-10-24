@@ -12,7 +12,7 @@ use utils::logs::init_logs;
 async fn main() {
     init_logs();
 
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5555);
 
     let semaphore = Arc::new(Semaphore::new(100));
     let (tx_cpu_queue_high, rx_cpu_queue_high) = mpsc::channel::<JobRequest>(256);

@@ -1,6 +1,6 @@
 {
   "stratum_host": "localhost",
-  "stratum_port": 8080,
+  "stratum_port": 5555,
   "database": {
     "host": "localhost",
     "port": 5432,

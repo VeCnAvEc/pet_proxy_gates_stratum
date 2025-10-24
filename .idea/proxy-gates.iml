@@ -12,6 +12,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/score/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/config/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/db/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/kafka/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

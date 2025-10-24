@@ -15,6 +15,7 @@ use scheduler::scheduler::Scheduler;
 use score::job::JobRequest;
 use telemetry::ActivityTelemetry;
 use config::Config;
+use network::api::client::ApiClient;
 
 pub async fn run_app(
     socket_addr: SocketAddr, semaphore: Arc<Semaphore>,
@@ -25,6 +26,14 @@ pub async fn run_app(
     let config = Arc::new(Config::new());
     let config_srv = config.clone();
     let config_sdr = config.clone();
+
+    let api_client = Arc::new(ApiClient::new(
+        config.api_url.clone(),
+        Duration::from_millis(100),
+        10
+    ));
+
+    let api_client_scheduler = Arc::clone(&api_client);
 
     let server = Server::new(
         socket_addr,
@@ -38,7 +47,8 @@ pub async fn run_app(
         rx_cpu_queue_norm,
         token_shutdown.clone(),
         semaphore,
-        config_sdr
+        config_sdr,
+        api_client_scheduler
     );
     let mut telemetry = ActivityTelemetry::new(token_shutdown.clone(), Duration::from_secs(10))
         .set_jobs_telemetry(true);

@@ -1,17 +1,25 @@
+use std::cmp::min;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use serde_json::Value;
+
 use tokio::select;
 use tokio::sync::{oneshot, Mutex};
 use tokio::sync::{mpsc, AcquireError, OwnedSemaphorePermit, Semaphore};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio_util::sync::CancellationToken;
-
 use tokio::task::{JoinHandle, JoinSet};
+
 use tracing::{error, info, warn};
+
 use config::Config;
-use score::job::{Job, JobRequest, Submit, Subscribe};
+
+use score::job::{Authorize, Job, JobRequest, Submit, Subscribe};
 use score::miner::Miner;
+
+use network::api::client::ApiClient;
 
 const HIGH_BUDGET: u16 = 32;
 
@@ -38,7 +46,8 @@ pub struct Scheduler {
     rx_norm: mpsc::Receiver<JobRequest>,
     shutdown: CancellationToken,
     cpu_limit: Arc<Semaphore>,
-    config: Arc<Config>
+    config: Arc<Config>,
+    api_client: Arc<ApiClient>
 }
 
 impl Scheduler {
@@ -47,14 +56,16 @@ impl Scheduler {
         rx_norm: mpsc::Receiver<JobRequest>,
         shutdown: CancellationToken,
         cpu_limit: Arc<Semaphore>,
-        config: Arc<Config>
+        config: Arc<Config>,
+        api_client: Arc<ApiClient>
     ) -> Self {
         Self {
             rx_high,
             rx_norm,
             shutdown,
             cpu_limit,
-            config
+            config,
+            api_client
         }
     }
 
@@ -131,6 +142,9 @@ impl Scheduler {
             Job::MiningSubscribe((subscribe, miner)) => {
                 let _ = self.handle_subscribe(subscribe, job.respond_to, miner).await;
             }
+            Job::MiningAuthorize((authorize, miner)) => {
+                let _ = self.handle_authorize(authorize, job.respond_to, miner).await;
+            }
             _ => {
                 warn!("It isn't a high priority job!");
             }
@@ -176,8 +190,29 @@ impl Scheduler {
 
         info!("Subscribe message: {:?}", subscribe);
 
-
         // respond_to();
         Ok(())
+    }
+
+    pub async fn handle_authorize(&self, authorize: Authorize, respond_to: oneshot::Sender<&'static str>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
+        let worker_full_name = authorize.username();
+
+        let subaccount_info = self.api_client.get_subaccount_info(worker_full_name.to_string()).await?;
+
+        {
+            let mut miner_guard = miner.lock().await;
+
+            let current_time = SystemTime::now();
+            let since_epoch = current_time.duration_since(UNIX_EPOCH)?.as_secs();
+
+            miner_guard.set_time_authorize(since_epoch);
+            miner_guard.set_pool_addr(subaccount_info.pool_target);
+            miner_guard.set_worker_name(subaccount_info.sub_account_name);
+            miner_guard.set_is_subscribe(true);
+        }
+
+
+        Ok(())
+
     }
 }

@@ -7,7 +7,10 @@ members = [
     "crates/telemetry",
     "crates/app",
     "crates/utils",
-    "bin/proxy-gates", "crates/db", "crates/config"]
+    "bin/proxy-gates",
+    "crates/config",
+    "crates/kafka"
+]
 
 [workspace.dependencies]
 tokio = { version = "1.44.2", features = ["full"] }
@@ -30,4 +33,6 @@ dashmap = "7.0.0-rc2"
 
 uuid = { version = "1.16.0", features = ["v4"] }
 
-sqlx = { version = "0.8.5", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "macros"] }
+rdkafka = { version = "0.37.0", features = ["cmake-build"] }
+
+reqwest = "0.12.15"
