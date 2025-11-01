@@ -1,12 +1,14 @@
+use std::sync::Arc;
 use std::sync::atomic::Ordering::Relaxed;
 use serde_json::Value;
-use tokio::sync::oneshot;
-use tokio::io::AsyncWriteExt;
+use tokio::sync::{oneshot, Mutex};
+use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
 use tracing::{error, info, warn};
-
+use score::job::ProxyMessage;
 use crate::connection::{TOTAL_JOBS, TOTAL_JOBS_FAILED, TOTAL_JOBS_SUCCEEDED};
 
 #[derive(Debug)]
@@ -18,8 +20,8 @@ pub enum Outcome {
 }
 
 pub async fn await_and_replay(
-    socket: &mut TcpStream,
-    rx: &mut oneshot::Receiver<&'static str>,
+    writer: Arc<Mutex<BufWriter<OwnedWriteHalf>>>,
+    rx: oneshot::Receiver<ProxyMessage<'static>>,
     cancel: CancellationToken
 ) -> Outcome {
     tokio::select! {
@@ -29,11 +31,25 @@ pub async fn await_and_replay(
         res = rx => {
             match res {
                 Ok(msg) => {
-                    if let Err(err) = socket.write_all(msg.as_bytes()).await {
-                        Outcome::IoError(err)
-                    } else {
-                        Outcome::Replied
+                    match msg {
+                        ProxyMessage::Wait => {
+                            Outcome::NoReply
+                        },
+                        ProxyMessage::Response(response) => {
+                            if let Err(err) = writer.lock().await.write_all(response.as_bytes()).await {
+                                Outcome::IoError(err)
+                            } else {
+                                Outcome::Replied
+                            }
+                        },
+                        ProxyMessage::Err(_) => {
+                            Outcome::NoReply
+                        }
+                        _ => {
+                            Outcome::NoReply
+                        }
                     }
+
                 }
                 Err(_err) => {Outcome::NoReply}
             }

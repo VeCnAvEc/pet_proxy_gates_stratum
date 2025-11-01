@@ -1,17 +1,42 @@
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
-use anyhow::{Context, Error};
-use reqwest::{Client, Response};
-use serde::Deserialize;
+use anyhow::{Context};
+use reqwest::{Client};
+use serde::{Deserialize};
 use serde_json::Value;
-use tracing::info;
 
+#[derive(Debug)]
 pub struct ApiClient {
     inner: Arc<Client>,
     base_url: String,
     timeout: Duration,
     max_retries: usize
+}
+
+#[derive(Debug, Deserialize)]
+pub enum ApiResponse {
+    Successfully(SubAccountInfo),
+    NotFoundSubAccount(NotFoundSubAccount)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NotFoundSubAccount {
+    error: String
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubAccountInfo {
+    pub id: String,
+    #[serde(rename = "minerId")]
+    pub miner_id: String,
+    #[serde(rename = "poolTarget")]
+    pub pool_target: String,
+    #[serde(rename = "subAccountName")]
+    pub sub_account_name: String,
+    pub active: bool,
+    pub metadata: Value,
+    #[serde(rename = "createdAt")]
+    pub created_at: String
 }
 
 impl ApiClient {
@@ -30,7 +55,7 @@ impl ApiClient {
     }
 
 
-    pub async fn get_subaccount_info(&self, worker_full_name: String) -> anyhow::Result<SubAccountInfo> {
+    pub async fn get_subaccount_info(&self, worker_full_name: String) -> anyhow::Result<ApiResponse> {
         let url = format!("{}/users/get-subAccount-info?workerName={}", self.base_url, worker_full_name);
 
         let mut attempt = 0;
@@ -47,13 +72,27 @@ impl ApiClient {
                 Ok(r) => {
                     if r.status().is_success() {
                         let text = r.text().await.context("read body")?;
-                        info!("text -> {:?}", text);
-                        let info = serde_json::from_str(&text)
+                        let json: Value = serde_json::from_str(&text)?;
+
+                        let is_error = json.get("error");
+                        if let Some(_) = is_error {
+                            let info: NotFoundSubAccount = serde_json::from_value(json)?;
+                            return Ok(ApiResponse::NotFoundSubAccount(info));
+                        }
+
+                        let info = serde_json::from_str::<SubAccountInfo>(&text)
                             .context("deserialize error")?;
 
-                        return Ok(info);
+                        return Ok(ApiResponse::Successfully(info));
                     } else if r.status().is_client_error() {
-                        anyhow::bail!("Client error: {}", r.status());
+                        let text = r.text().await.context("read body")?;
+                        let json: Value = serde_json::from_str(&text)?;
+
+                        let is_error = json.get("error");
+                        if let Some(_) = is_error {
+                            let info: NotFoundSubAccount = serde_json::from_value(json)?;
+                            return Ok(ApiResponse::NotFoundSubAccount(info));
+                        }
                     } else {
                         if attempt > self.max_retries {
                             anyhow::bail!("server error after retries: {}", r.status());
@@ -71,19 +110,4 @@ impl ApiClient {
             tokio::time::sleep(backoff).await;
         }
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SubAccountInfo {
-    pub id: String,
-    #[serde(rename = "minerId")]
-    pub miner_id: String,
-    #[serde(rename = "poolTarget")]
-    pub pool_target: String,
-    #[serde(rename = "subAccountName")]
-    pub sub_account_name: String,
-    pub active: bool,
-    pub metadata: Value,
-    #[serde(rename = "createdAt")]
-    pub created_at: String
 }

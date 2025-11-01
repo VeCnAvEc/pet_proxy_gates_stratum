@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
+use anyhow::anyhow;
 use serde_json::Value;
 
 use tokio::select;
@@ -16,10 +17,11 @@ use tracing::{error, info, warn};
 
 use config::Config;
 
-use score::job::{Authorize, Job, JobRequest, Submit, Subscribe};
+use score::job::{AuthorizeParams, Job, JobRequest, ProxyMessage, SubmitParams, SubscribeParams};
 use score::miner::Miner;
 
-use network::api::client::ApiClient;
+use network::api::client::{ApiClient, ApiResponse};
+use network::upstream::pool_client::PoolClient;
 
 const HIGH_BUDGET: u16 = 32;
 
@@ -40,7 +42,7 @@ impl Drop for InFlightCpuGuard {
     }
 }
 
-
+#[derive(Debug)]
 pub struct Scheduler {
     rx_high: mpsc::Receiver<JobRequest>,
     rx_norm: mpsc::Receiver<JobRequest>,
@@ -154,9 +156,9 @@ impl Scheduler {
     pub async fn process_norm_queue(&self, job: JobRequest) {
         match job.job {
             Job::Ping => {
-                if let Err(err) = job.respond_to.send("PONG\n") {
+                if let Err(err) = job.respond_to.send(ProxyMessage::Response(Cow::from("OK\n"))) {
                     warn!("Couldn't to send to respond_to!");
-                    error!("respond_to send error: {}", err);
+                    error!("respond_to send error: {:?}", err);
                 };
             }
             _ => {
@@ -165,7 +167,7 @@ impl Scheduler {
         }
     }
 
-    pub async fn handle_submit(&self, submit: Submit, respond_to: oneshot::Sender<&'static str>) -> anyhow::Result<()> {
+    pub async fn handle_submit(&self, submit: SubmitParams, respond_to: oneshot::Sender<ProxyMessage<'static>>) -> anyhow::Result<()> {
         let permit = self.cpu_limit.clone().acquire_owned().await?;
 
         let _join_submit = tokio::task::spawn_blocking(move ||  {
@@ -175,44 +177,84 @@ impl Scheduler {
             std::thread::sleep(Duration::from_millis(100));
 
             info!("Submit -> {:?}", submit);
-            if let Err(err) = respond_to.send("OK\n") {
+            if let Err(err) = respond_to.send(ProxyMessage::Response(Cow::from("OK\n"))) {
                 warn!("Couldn't to send respond_to!");
-                error!("respond_to send error: {}", err);
+                error!("respond_to send error: {:?}", err);
             }
         });
 
         Ok(())
     }
 
-    pub async fn handle_subscribe(&self, subscribe: Subscribe, respond_to: oneshot::Sender<&'static str>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
-        miner.lock().await.set_is_subscribe(true);
-        info!("Miner is subscribe!");
+    pub async fn handle_subscribe(&self, subscribe: SubscribeParams, respond_to: oneshot::Sender<ProxyMessage<'static>>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
+        let mut miner_guard = miner.lock().await;
 
-        info!("Subscribe message: {:?}", subscribe);
+        let subscribe_json = serde_json::to_string(&subscribe)?;
 
-        // respond_to();
+        if !miner_guard.is_authorize() {
+            miner_guard.set_pending_subscribe(subscribe_json);
+            info!("miner_guard pending subscribe: {:?}", miner_guard.take_pending_subscribe());
+            info!("Miner not authorized yet. Subscribe saved for later.");
+            let result = respond_to.send(ProxyMessage::Wait);
+            if let Err(_) = result {
+                return Err(anyhow!("Channel has been closed"));
+            }
+
+            return Ok(());
+        }
+
+        if let Some(pool_tx) = miner_guard.pool_tx() {
+            pool_tx.send(subscribe_json).await?;
+            miner.lock().await.set_is_subscribe(true);
+        } else {
+            warn!("Pool tx not available even though miner is authorized");
+        }
+
         Ok(())
     }
 
-    pub async fn handle_authorize(&self, authorize: Authorize, respond_to: oneshot::Sender<&'static str>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
+    pub async fn handle_authorize(&self, authorize: AuthorizeParams, respond_to: oneshot::Sender<ProxyMessage<'static>>, miner: Arc<Mutex<Miner>>) -> anyhow::Result<()> {
         let worker_full_name = authorize.username();
 
         let subaccount_info = self.api_client.get_subaccount_info(worker_full_name.to_string()).await?;
 
-        {
-            let mut miner_guard = miner.lock().await;
+        match subaccount_info {
+            ApiResponse::Successfully(subaccount_info) => {
+                let pool_target = subaccount_info.pool_target.clone();
 
-            let current_time = SystemTime::now();
-            let since_epoch = current_time.duration_since(UNIX_EPOCH)?.as_secs();
+                let authorize_json = serde_json::to_string(&authorize)?;
+                let miner_tx = miner.lock().await.miner_tx();
+                let pool_client = PoolClient::new(&pool_target, miner_tx).await?;
 
-            miner_guard.set_time_authorize(since_epoch);
-            miner_guard.set_pool_addr(subaccount_info.pool_target);
-            miner_guard.set_worker_name(subaccount_info.sub_account_name);
-            miner_guard.set_is_subscribe(true);
+                {
+                    let mut miner_guard = miner.lock().await;
+                    let current_time = SystemTime::now();
+                    let since_epoch = current_time.duration_since(UNIX_EPOCH)?.as_secs();
+
+                    miner_guard.set_time_authorize(since_epoch);
+                    miner_guard.set_pool_addr(subaccount_info.pool_target);
+                    miner_guard.set_worker_name(subaccount_info.sub_account_name);
+                    miner_guard.set_is_authorize(true);
+                    miner_guard.set_pool_tx(pool_client.miner_channel_writer());
+
+                    if let Some(pending_subscribe) = miner_guard.take_pending_subscribe() {
+                        if let Some(pool_tx) = miner_guard.pool_tx() {
+                            pool_tx.send(pending_subscribe.clone()).await?;
+                        }
+                    }
+                }
+
+                let sender = pool_client.miner_channel_writer();
+
+                if let Err(e) = sender.send(authorize_json).await {
+                    error!("Channel was closed with error: {:?}", e);
+                }
+            }
+            ApiResponse::NotFoundSubAccount(error) => {
+                info!("error -> {:?}", error);
+            }
         }
 
-
         Ok(())
-
     }
 }

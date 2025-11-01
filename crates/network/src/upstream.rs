@@ -1,1 +1,1 @@
-mod pool_client;
+pub mod pool_client;

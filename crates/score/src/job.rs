@@ -1,5 +1,6 @@
+use std::borrow::Cow;
 use std::sync::Arc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::{Mutex, oneshot};
 use crate::miner::Miner;
@@ -7,20 +8,29 @@ use crate::traits::{extract_params_array, FromParams, ParseError};
 
 #[derive(Debug)]
 pub enum Job {
-    MiningSubmit((Submit, Arc<Mutex<Miner>>)), // mining.submit
-    MiningAuthorize((Authorize, Arc<Mutex<Miner>>)), // mining.authorize
-    MiningSubscribe((Subscribe, Arc<Mutex<Miner>>)), // mining.subscribe
+    MiningSubmit((SubmitParams, Arc<Mutex<Miner>>)), // mining.submit
+    MiningAuthorize((AuthorizeParams, Arc<Mutex<Miner>>)), // mining.authorize
+    MiningSubscribe((SubscribeParams, Arc<Mutex<Miner>>)), // mining.subscribe
     Ping,
+}
+
+#[derive(Debug)]
+pub enum ProxyMessage<'a> {
+    Wait,
+    Request(Cow<'a, str>),
+    Response(Cow<'a, str>),
+    Err(Cow<'a, str>)
 }
 
 #[derive(Debug)]
 pub struct JobRequest {
     pub job: Job, // mining method
-    pub respond_to: oneshot::Sender<&'static str>, // a channel for responding to the user
+    pub respond_to: oneshot::Sender<ProxyMessage<'static>>, // a channel for responding to the user
+    // pub miner_notify_rx: Option<tokio::sync::mpsc::Receiver<String>> // If the JobRequest is the mining.notify we will need to open a stream for the message flow
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Submit {
+pub struct SubmitParams {
     pub workername: String, // worker_name ASIC
     pub job_id: String, // job_id from mining.notify
     pub extranonce2: String, // user extranonce
@@ -29,23 +39,23 @@ pub struct Submit {
     pub n_bits: Option<String> // changed bytes
 }
 
-#[derive(Debug)]
-pub struct Authorize {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthorizeParams {
     username: String, // user's username on pool
     password: Option<String> // pool pass or preferred diff
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Subscribe {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubscribeParams {
     agent_version: String, // example: user agent/version
     extranonce1: Option<String> // Optional extranonce1. If miner wants to continue with his past extranonce1
 }
 
 // Build a structure submit from params
-impl FromParams for Submit {
+impl FromParams for SubmitParams {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
-            Submit {
+            SubmitParams {
                 workername: params.get(0).and_then(|worker| Some(worker.as_str().unwrap().to_string())).unwrap(),
                 job_id: params.get(1).and_then(|job_id| Some(job_id.as_str().unwrap().to_string())).unwrap(),
                 extranonce2: params.get(2).and_then(|extranonce2| Some(extranonce2.as_str().unwrap().to_string())).unwrap(),
@@ -58,10 +68,10 @@ impl FromParams for Submit {
 }
 
 // Build a structure authorize from params
-impl FromParams for Authorize {
+impl FromParams for AuthorizeParams {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
-            Authorize {
+            AuthorizeParams {
                 username: params.get(0).and_then(|username| Some(username.as_str().unwrap().to_string())).unwrap(),
                 password: params.get(1).and_then(|pass| Some(pass.as_str().unwrap().to_string())),
             }
@@ -70,10 +80,10 @@ impl FromParams for Authorize {
 }
 
 // Build a structure subscribe from params
-impl FromParams for Subscribe {
+impl FromParams for SubscribeParams {
     fn from_params(params: &[Value]) -> Result<Self, ParseError> {
         Ok(
-            Subscribe {
+            SubscribeParams {
                 agent_version: params.get(0).and_then(|text| Some(text.as_str().unwrap().to_string())).unwrap_or("Unknown".to_string()),
                 extranonce1: params.get(1).and_then(|extranonce1| Some(extranonce1.as_str().unwrap().to_string())),
             }
@@ -81,38 +91,38 @@ impl FromParams for Subscribe {
     }
 }
 
-impl Submit {
+impl SubmitParams {
     pub fn from_value(v: &Value) -> Result<Self, ParseError> {
         let params = extract_params_array(v);
         if let Err(err) = params {
             return Err(ParseError::Other(err));
         }
-        Submit::from_params(params.unwrap())
+        SubmitParams::from_params(params.unwrap())
     }
 }
 
-impl Authorize {
+impl AuthorizeParams {
     pub fn form_value(v: &Value) -> Result<Self, ParseError> {
         let params = extract_params_array(v);
         if let Err(err) = params {
             return Err(ParseError::Other(err));
         }
-        Authorize::from_params(params.unwrap())
+        AuthorizeParams::from_params(params.unwrap())
     }
 }
 
-impl Subscribe {
+impl SubscribeParams {
     pub fn from_value(v: &Value) -> Result<Self, ParseError> {
         let params = extract_params_array(v);
         if let Err(err) = params {
             return Err(ParseError::Other(err));
         }
 
-        Subscribe::from_params(params.unwrap())
+        SubscribeParams::from_params(params.unwrap())
     }
 }
 
-impl Authorize {
+impl AuthorizeParams {
     pub fn username(&self) -> &str {
         &self.username
     }

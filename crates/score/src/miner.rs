@@ -1,5 +1,5 @@
 use std::net::{IpAddr, SocketAddr};
-
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -12,12 +12,15 @@ pub struct Miner {
     share_count: u64,
     miner_diff: u64,
     worker_name: String,
+    miner_tx: mpsc::Sender<String>,
+    pool_tx: Option<mpsc::Sender<String>>,
+    pending_subscribe: Option<String>,
     is_subscribe: bool,
     is_authorize: bool
 }
 
 impl Miner {
-    pub fn new(socket_address: SocketAddr) -> Self {
+    pub fn new(socket_address: SocketAddr, miner_tx: mpsc::Sender<String>) -> Self {
         let host = socket_address.ip();
         let port = socket_address.port();
 
@@ -31,6 +34,9 @@ impl Miner {
             share_count: 0,
             miner_diff: 0,
             worker_name: "".to_string(),
+            miner_tx,
+            pool_tx: None,
+            pending_subscribe: None,
             is_subscribe: false,
             is_authorize: false,
         }
@@ -59,6 +65,14 @@ impl Miner {
 
     pub fn set_worker_name<S: Into<String>>(&mut self, name: S) {
         self.worker_name = name.into();
+    }
+
+    pub fn set_pool_tx(&mut self, pool_tx: mpsc::Sender<String>) {
+        self.pool_tx = Some(pool_tx);
+    }
+
+    pub fn set_pending_subscribe(&mut self, json: String) {
+        self.pending_subscribe = Some(json);
     }
 
     pub fn set_is_subscribe(&mut self, value: bool) {
@@ -101,6 +115,18 @@ impl Miner {
 
     pub fn worker_name(&self) -> &str {
         &self.worker_name
+    }
+
+    pub fn miner_tx(&self) -> mpsc::Sender<String> {
+        self.miner_tx.clone()
+    }
+
+    pub fn pool_tx(&self) -> Option<mpsc::Sender<String>> {
+        self.pool_tx.clone()
+    }
+
+    pub fn take_pending_subscribe(&self) -> &Option<String> {
+        &self.pending_subscribe
     }
 
     pub fn is_subscribe(&self) -> bool {

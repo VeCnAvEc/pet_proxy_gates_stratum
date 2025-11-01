@@ -48,14 +48,15 @@ pub fn parse_message(line: &str) -> anyhow::Result<Command> {
             Ok(Command::CSubscribe(subscribe))
         }
         _ => {
-            let validation_result = validation_subscribe(&message_json);
-            if let Err(err) = validation_result {
-                warn!("Validation Error: {:?}", err);
-                return Ok(Command::Unknown)
-            }
-            let subscribe = Subscribe::from_value(&message_json)?;
-
-            Ok(Command::CSubscribe(subscribe))
+            Ok(Command::Unknown)
+            // let validation_result = validation_subscribe(&message_json);
+            // if let Err(err) = validation_result {
+            //     warn!("Validation Error: {:?}", err);
+            //     return Ok(Command::Unknown)
+            // }
+            // let subscribe = Subscribe::from_value(&message_json)?;
+            //
+            // Ok(Command::CSubscribe(subscribe))
         }
     }
 }
